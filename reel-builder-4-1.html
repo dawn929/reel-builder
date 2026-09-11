@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Reel Builder</title>
+<style>
+  :root{
+    --bg: #F4F6FA;
+    --surface: #FFFFFF;
+    --surface-2: #EEF1F7;
+    --text: #12141C;
+    --text-dim: #6B7280;
+    --coral: #2F6BFF;
+    --teal: #00C2D1;
+    --line: #DCE1EB;
+    --danger: #D8432E;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:0 0 48px;
+  }
+  .wrap{max-width:520px;margin:0 auto;padding:24px 18px;}
+  header{margin-bottom:28px;}
+  header h1{font-size:28px;font-weight:800;letter-spacing:-0.02em;margin:0 0 6px;}
+  header p{color:var(--text-dim);margin:0;font-size:15px;line-height:1.5;}
+
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .step-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .step-num{width:24px;height:24px;border-radius:50%;background:var(--coral);color:#FFFFFF;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .step-title{font-weight:700;font-size:16px;}
+  .step-sub{color:var(--text-dim);font-size:13px;margin:2px 0 0 34px;line-height:1.4;}
+
+  label{display:block;font-size:13px;color:var(--text-dim);margin:12px 0 6px;}
+  input[type=text], input[type=password], input[type=number], textarea{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:10px;padding:11px 12px;font-size:15px;font-family:inherit;resize:vertical;
+  }
+  textarea{min-height:90px;line-height:1.5;}
+  input:focus, textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
+
+  .row{display:flex;gap:10px;align-items:center;}
+  .row input[type=number]{width:80px;}
+  .save-note{font-size:12px;color:var(--teal);margin-top:4px;display:none;}
+  .save-note.show{display:block;}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;
+    background:var(--coral);color:#FFFFFF;border:none;border-radius:10px;padding:13px 16px;
+    font-size:15px;font-weight:700;margin-top:14px;cursor:pointer;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn.secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--line);}
+  .btn.teal{background:var(--teal);color:#FFFFFF;}
+  .btn.small{padding:8px 12px;font-size:13px;margin-top:0;width:auto;}
+
+  .status{font-size:13px;margin-top:10px;padding:10px 12px;border-radius:8px;line-height:1.5;display:none;}
+  .status.show{display:block;}
+  .status.info{background:rgba(79,216,196,.12);color:var(--teal);}
+  .status.error{background:rgba(255,139,107,.12);color:var(--danger);}
+  .status.ok{background:rgba(79,216,196,.12);color:var(--teal);}
+
+  .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .thumbs video{width:72px;height:96px;object-fit:cover;border-radius:8px;border:2px solid transparent;}
+  .thumbs video.picked{border-color:var(--coral);}
+
+  .speed-badge{display:inline-block;background:var(--teal);color:#FFFFFF;font-weight:700;font-size:13px;padding:4px 10px;border-radius:20px;margin-top:10px;}
+
+  progress{width:100%;height:8px;border-radius:6px;margin-top:12px;accent-color:var(--coral);}
+  video#previewOut{width:100%;border-radius:12px;margin-top:14px;background:#000;}
+  a.download{display:block;text-align:center;background:var(--teal);color:#FFFFFF;font-weight:700;border-radius:10px;padding:13px;margin-top:12px;text-decoration:none;}
+  .hint{font-size:12px;color:var(--text-dim);margin-top:8px;line-height:1.5;}
+  .hint a{color:var(--teal);}
+
+  .part{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;}
+  .part-label{font-size:13px;font-weight:700;margin-bottom:6px;}
+  .part-text{font-size:13px;color:var(--text-dim);background:var(--bg);border-radius:8px;padding:8px;margin-bottom:8px;max-height:90px;overflow:auto;white-space:pre-wrap;}
+</style>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Reel Builder</h1>
+    <p>Story → voiceover → background clip → captions → export. Runs right here in your browser.</p>
+    <p style="font-size:11px;color:var(--teal);margin-top:6px;">Build: 2026-09-11-v7-secure</p>
+  </header>
+
+  <!-- STEP 1: STORY + VOICEOVER -->
+  <div class="step">
+    <div class="step-head"><div class="step-num">1</div><div class="step-title">Your story</div></div>
+    <div class="step-sub">Long stories are auto-split into ~490-character parts (Fish Audio's free-plan limit) and stitched back into one voiceover.</div>
+    <label for="story">Story text</label>
+    <textarea id="story" placeholder="Once upon a time..."></textarea>
+
+    <label for="proxyUrl">Proxy URL (from your Cloudflare Worker)</label>
+    <input type="text" id="proxyUrl" placeholder="https://reel-builder-proxy.your-subdomain.workers.dev">
+    <label for="voiceId">Cloned voice ID (reference_id)</label>
+    <input type="text" id="voiceId" placeholder="your_model_id">
+    <div class="save-note" id="saveNote">Saved — you won't need to enter this again on this device.</div>
+    <label for="apiKey">Fish Audio API key <span style="color:var(--text-dim);font-weight:400;">(only needed if you're not using a proxy)</span></label>
+    <input type="password" id="apiKey" placeholder="fa-...">
+    <div class="hint">If you've set up the proxy, leave the API key field blank — your key stays safely on Cloudflare's side instead.</div>
+
+    <label for="tuneRate">Voice tuning (speed + pitch, linked)</label>
+    <div class="row">
+      <input type="number" id="tuneRate" value="1.1" min="0.5" max="2" step="0.05">
+      <span style="font-size:13px;color:var(--text-dim);">× speed (pitch moves with it, like CapCut)</span>
+    </div>
+
+    <button class="btn" id="genVoiceBtn">Generate voiceover</button>
+    <div class="status" id="voiceStatus"></div>
+
+    <div id="manualFallback" style="display:none;">
+      <div class="hint">
+        Direct generation didn't go through (common — TTS APIs usually block calls straight from a browser for security). Generate each part below on
+        <a href="https://fish.audio/app/text-to-speech" target="_blank" rel="noopener">fish.audio/app/text-to-speech</a> using your cloned voice, then upload each mp3 in order.
+      </div>
+      <div id="partsList"></div>
+      <button class="btn secondary" id="combinePartsBtn" style="display:none;">Combine &amp; tune parts</button>
+    </div>
+
+    <audio id="audioPreview" controls style="width:100%;margin-top:10px;display:none;"></audio>
+  </div>
+
+  <!-- STEP 2: BACKGROUND VIDEO -->
+  <div class="step">
+    <div class="step-head"><div class="step-num">2</div><div class="step-title">Background clip</div></div>
+    <div class="step-sub">Upload one or more clips. The tool picks one at random and analyzes its motion to choose a speed automatically.</div>
+    <label for="videoFiles">Background video(s)</label>
+    <input type="file" id="videoFiles" accept="video/*" multiple>
+    <div class="thumbs" id="thumbs"></div>
+    <button class="btn secondary" id="analyzeBtn" disabled>Pick clip &amp; auto-detect speed</button>
+    <div class="status" id="analyzeStatus"></div>
+    <div id="speedBadgeWrap"></div>
+  </div>
+
+  <!-- STEP 3: GENERATE -->
+  <div class="step">
+    <div class="step-head"><div class="step-num">3</div><div class="step-title">Build the video</div></div>
+    <div class="step-sub">Captions are auto-split from your story and timed across the voiceover. Recording happens in real time — it'll take about as long as your voiceover.</div>
+    <button class="btn teal" id="buildBtn" disabled>Generate video</button>
+    <progress id="buildProgress" value="0" max="1" style="display:none;"></progress>
+    <div class="status" id="buildStatus"></div>
+    <video id="previewOut" playsinline muted style="display:none;"></video>
+    <a class="download" id="downloadLink" style="display:none;" download="reel.webm">Download video</a>
+  </div>
+
+  <canvas id="workCanvas" width="720" height="1280" style="position:fixed;top:-9999px;left:-9999px;"></canvas>
+  <video id="srcVideo" playsinline muted style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;"></video>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const storyEl = $('story'), apiKeyEl = $('apiKey'), voiceIdEl = $('voiceId'), tuneRateEl = $('tuneRate'), proxyUrlEl = $('proxyUrl');
+const saveNote = $('saveNote');
+const genVoiceBtn = $('genVoiceBtn'), voiceStatus = $('voiceStatus');
+const manualFallback = $('manualFallback'), partsList = $('partsList'), combinePartsBtn = $('combinePartsBtn');
+const audioPreview = $('audioPreview');
+const videoFilesEl = $('videoFiles'), thumbsEl = $('thumbs');
+const analyzeBtn = $('analyzeBtn'), analyzeStatus = $('analyzeStatus'), speedBadgeWrap = $('speedBadgeWrap');
+const buildBtn = $('buildBtn'), buildProgress = $('buildProgress'), buildStatus = $('buildStatus');
+const previewOut = $('previewOut'), downloadLink = $('downloadLink');
+const workCanvas = $('workCanvas'), ctx = workCanvas.getContext('2d');
+const srcVideo = $('srcVideo');
+
+let voiceoverBlobUrl = null;
+let voiceoverFile = null;
+let uploadedVideos = [];
+let pickedVideoFile = null;
+let chosenSpeed = 2.5;
+let captionChunks = [];
+const TARGET_SAMPLE_RATE = 44100;
+
+// ---------- persisted voice ID ----------
+(function loadSavedSettings(){
+  try{
+    const savedVoice = localStorage.getItem('fish_voice_id');
+    if(savedVoice){ voiceIdEl.value = savedVoice; saveNote.classList.add('show'); }
+  }catch(e){ /* localStorage unavailable */ }
+  try{
+    const savedProxy = localStorage.getItem('fish_proxy_url');
+    if(savedProxy){ proxyUrlEl.value = savedProxy; saveNote.classList.add('show'); }
+  }catch(e){ /* localStorage unavailable */ }
+})();
+voiceIdEl.addEventListener('change', () => {
+  const val = voiceIdEl.value.trim();
+  if(!val) return;
+  try{ localStorage.setItem('fish_voice_id', val); saveNote.classList.add('show'); }
+  catch(e){ console.warn('Could not save voice ID', e); }
+});
+proxyUrlEl.addEventListener('change', () => {
+  const val = proxyUrlEl.value.trim();
+  if(!val) return;
+  try{ localStorage.setItem('fish_proxy_url', val); saveNote.classList.add('show'); }
+  catch(e){ console.warn('Could not save proxy URL', e); }
+});
+
+function setStatus(el, msg, type){ el.textContent = msg; el.className = 'status show ' + type; }
+function clearStatus(el){ el.className = 'status'; el.textContent=''; }
+
+function splitIntoChunks(text, maxChars){
+  const sentences = text.trim().split(/(?<=[.!?])\s+/);
+  const chunks = [];
+  let current = '';
+  for(const s of sentences){
+    if((current + ' ' + s).trim().length <= maxChars){
+      current = (current + ' ' + s).trim();
+    }else{
+      if(current) chunks.push(current);
+      // sentence itself longer than maxChars: hard-split it
+      if(s.length > maxChars){
+        let rest = s;
+        while(rest.length > maxChars){
+          chunks.push(rest.slice(0, maxChars));
+          rest = rest.slice(maxChars);
+        }
+        current = rest;
+      }else{
+        current = s;
+      }
+    }
+  }
+  if(current) chunks.push(current);
+  return chunks.length ? chunks : [text.trim()];
+}
+
+// ---------- audio helpers ----------
+let sharedAudioCtx = null;
+function getAudioCtx(){
+  if(!sharedAudioCtx) sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return sharedAudioCtx;
+}
+
+async function decodeToBuffer(arrayBuffer){
+  const c = getAudioCtx();
+  try{
+    return await c.decodeAudioData(arrayBuffer.slice(0));
+  }catch(e){
+    throw new Error('Could not decode audio (' + arrayBuffer.byteLength + ' bytes received): ' + e.message);
+  }
+}
+
+async function resampleTo(buffer, targetRate){
+  if(Math.abs(buffer.sampleRate - targetRate) < 1) return buffer;
+  const offline = new OfflineAudioContext(buffer.numberOfChannels, Math.ceil(buffer.duration*targetRate), targetRate);
+  const src = offline.createBufferSource();
+  src.buffer = buffer;
+  src.connect(offline.destination);
+  src.start(0);
+  return await offline.startRendering();
+}
+
+function concatBuffers(buffers, ctx){
+  const numChannels = Math.max(...buffers.map(b=>b.numberOfChannels));
+  const sampleRate = buffers[0].sampleRate;
+  const totalLength = buffers.reduce((sum,b)=>sum+b.length,0);
+  const out = ctx.createBuffer(numChannels, totalLength, sampleRate);
+  let offset = 0;
+  for(const b of buffers){
+    for(let ch=0; ch<numChannels; ch++){
+      const data = b.getChannelData(Math.min(ch, b.numberOfChannels-1));
+      out.getChannelData(ch).set(data, offset);
+    }
+    offset += b.length;
+  }
+  return out;
+}
+
+async function applyRate(buffer, rate){
+  if(!rate || rate === 1) return buffer;
+  const newLength = Math.ceil(buffer.length / rate);
+  const offline = new OfflineAudioContext(buffer.numberOfChannels, newLength, buffer.sampleRate);
+  const src = offline.createBufferSource();
+  src.buffer = buffer;
+  src.playbackRate.value = rate;
+  src.connect(offline.destination);
+  src.start(0);
+  return await offline.startRendering();
+}
+
+function audioBufferToWav(buffer){
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const length = buffer.length * numChannels * 2 + 44;
+  const bufferArr = new ArrayBuffer(length);
+  const view = new DataView(bufferArr);
+  function writeString(offset, str){ for(let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); }
+  writeString(0,'RIFF'); view.setUint32(4, length-8, true); writeString(8,'WAVE');
+  writeString(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true);
+  view.setUint16(22,numChannels,true); view.setUint32(24,sampleRate,true);
+  view.setUint32(28,sampleRate*numChannels*2,true); view.setUint16(32,numChannels*2,true); view.setUint16(34,16,true);
+  writeString(36,'data'); view.setUint32(40, length-44, true);
+  let offset = 44;
+  const channels = [];
+  for(let i=0;i<numChannels;i++) channels.push(buffer.getChannelData(i));
+  for(let i=0;i<buffer.length;i++){
+    for(let ch=0;ch<numChannels;ch++){
+      let sample = Math.max(-1, Math.min(1, channels[ch][i]));
+      sample = sample < 0 ? sample*0x8000 : sample*0x7FFF;
+      view.setInt16(offset, sample, true);
+      offset += 2;
+    }
+  }
+  return new Blob([bufferArr], {type:'audio/wav'});
+}
+
+function setVoiceover(blobOrFile){
+  voiceoverFile = blobOrFile;
+  if(voiceoverBlobUrl) URL.revokeObjectURL(voiceoverBlobUrl);
+  voiceoverBlobUrl = URL.createObjectURL(blobOrFile);
+  audioPreview.src = voiceoverBlobUrl;
+  audioPreview.style.display = 'block';
+  checkReadyToBuild();
+}
+
+async function finalizeBuffers(buffers, rate){
+  const c = getAudioCtx();
+  const resampled = [];
+  for(const b of buffers) resampled.push(await resampleTo(b, TARGET_SAMPLE_RATE));
+  const merged = concatBuffers(resampled, c);
+  const tuned = await applyRate(merged, rate);
+  return audioBufferToWav(tuned);
+}
+
+// ---------- STEP 1: Voiceover (automatic) ----------
+genVoiceBtn.addEventListener('click', async () => {
+  const text = storyEl.value.trim();
+  const key = apiKeyEl.value.trim();
+  const voiceId = voiceIdEl.value.trim();
+  const proxyUrl = proxyUrlEl.value.trim();
+  const rate = parseFloat(tuneRateEl.value) || 1;
+  if(!text){ setStatus(voiceStatus,'Add your story text first.','error'); return; }
+  if(!voiceId){ setStatus(voiceStatus,'Add your voice ID.','error'); return; }
+  if(!proxyUrl && !key){ setStatus(voiceStatus,'Add a proxy URL, or an API key if not using a proxy.','error'); return; }
+
+  genVoiceBtn.disabled = true;
+  manualFallback.style.display = 'none';
+
+  const chunks = splitIntoChunks(text, 490);
+  const decodedBuffers = [];
+
+  try{
+    for(let i=0;i<chunks.length;i++){
+      setStatus(voiceStatus, 'Generating part ' + (i+1) + ' of ' + chunks.length + '...', 'info');
+      let res;
+      if(proxyUrl){
+        res = await fetch(proxyUrl, {
+          method:'POST',
+          headers:{ 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: chunks[i], reference_id: voiceId, format:'mp3' })
+        });
+      }else{
+        res = await fetch('https://api.fish.audio/v1/tts', {
+          method:'POST',
+          headers:{ 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: chunks[i], reference_id: voiceId, format:'mp3' })
+        });
+      }
+      if(!res.ok){
+        let errText = '';
+        try{ errText = await res.text(); }catch(e){}
+        throw new Error('HTTP ' + res.status + (errText ? ': ' + errText.slice(0,300) : ''));
+      }
+      const arrBuf = await res.arrayBuffer();
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if(!ct.includes('audio') && !ct.includes('mpeg') && !ct.includes('octet-stream')){
+        let text = '';
+        try{ text = new TextDecoder().decode(arrBuf); }catch(e){}
+        throw new Error('Response was not audio (content-type: ' + (ct||'unknown') + '): ' + text.slice(0,300));
+      }
+      decodedBuffers.push(await decodeToBuffer(arrBuf));
+    }
+    setStatus(voiceStatus, 'Stitching ' + chunks.length + ' part(s) and applying voice tuning...', 'info');
+    const wavBlob = await finalizeBuffers(decodedBuffers, rate);
+    setVoiceover(wavBlob);
+    setStatus(voiceStatus,'Voiceover ready.','ok');
+  }catch(err){
+    console.warn(err);
+    const isNetworkError = err.message === 'Failed to fetch' || err.name === 'TypeError';
+    setStatus(voiceStatus, isNetworkError
+      ? 'Could not reach the server at all (network/CORS block): ' + err.message
+      : 'Server responded with an error: ' + err.message, 'error');
+    buildManualParts(chunks);
+    manualFallback.style.display = 'block';
+  }finally{
+    genVoiceBtn.disabled = false;
+  }
+});
+
+// ---------- STEP 1: Voiceover (manual multi-part fallback) ----------
+let manualPartFiles = [];
+function buildManualParts(chunks){
+  manualPartFiles = new Array(chunks.length).fill(null);
+  partsList.innerHTML = '';
+  chunks.forEach((chunk, i) => {
+    const div = document.createElement('div');
+    div.className = 'part';
+    div.innerHTML =
+      '<div class="part-label">Part ' + (i+1) + ' of ' + chunks.length + ' (' + chunk.length + ' chars)</div>' +
+      '<div class="part-text">' + chunk.replace(/</g,'&lt;') + '</div>' +
+      '<input type="file" accept="audio/*" data-idx="' + i + '">';
+    const input = div.querySelector('input');
+    input.addEventListener('change', () => {
+      manualPartFiles[i] = input.files[0] || null;
+      combinePartsBtn.style.display = manualPartFiles.every(f=>f) ? 'block' : 'none';
+    });
+    partsList.appendChild(div);
+  });
+  combinePartsBtn.style.display = 'none';
+}
+
+combinePartsBtn.addEventListener('click', async () => {
+  combinePartsBtn.disabled = true;
+  setStatus(voiceStatus, 'Combining parts and applying voice tuning...', 'info');
+  try{
+    const rate = parseFloat(tuneRateEl.value) || 1;
+    const decodedBuffers = [];
+    for(const file of manualPartFiles){
+      const arrBuf = await file.arrayBuffer();
+      decodedBuffers.push(await decodeToBuffer(arrBuf));
+    }
+    const wavBlob = await finalizeBuffers(decodedBuffers, rate);
+    setVoiceover(wavBlob);
+    setStatus(voiceStatus,'Voiceover ready.','ok');
+  }catch(err){
+    console.error(err);
+    setStatus(voiceStatus,'Could not combine the parts: ' + err.message,'error');
+  }finally{
+    combinePartsBtn.disabled = false;
+  }
+});
+
+// ---------- STEP 2: Background video ----------
+videoFilesEl.addEventListener('change', () => {
+  uploadedVideos = Array.from(videoFilesEl.files);
+  thumbsEl.innerHTML = '';
+  uploadedVideos.forEach((f) => {
+    const v = document.createElement('video');
+    v.src = URL.createObjectURL(f);
+    v.muted = true;
+    thumbsEl.appendChild(v);
+  });
+  analyzeBtn.disabled = uploadedVideos.length === 0;
+  clearStatus(analyzeStatus);
+  speedBadgeWrap.innerHTML = '';
+});
+
+analyzeBtn.addEventListener('click', async () => {
+  if(uploadedVideos.length === 0) return;
+  analyzeBtn.disabled = true;
+  setStatus(analyzeStatus,'Picking a clip and measuring motion...','info');
+  const idx = Math.floor(Math.random() * uploadedVideos.length);
+  pickedVideoFile = uploadedVideos[idx];
+  Array.from(thumbsEl.children).forEach((v,i)=> v.classList.toggle('picked', i===idx));
+  try{
+    chosenSpeed = await detectSpeedForVideo(pickedVideoFile);
+    setStatus(analyzeStatus, 'Clip ' + (idx+1) + ' selected.', 'ok');
+    speedBadgeWrap.innerHTML = '<span class="speed-badge">Auto speed: ' + chosenSpeed.toFixed(1) + 'x</span>';
+  }catch(err){
+    chosenSpeed = 2.5;
+    setStatus(analyzeStatus,'Could not analyze motion, using default 2.5x.','error');
+    speedBadgeWrap.innerHTML = '<span class="speed-badge">Speed: 2.5x (default)</span>';
+  }finally{
+    analyzeBtn.disabled = false;
+    checkReadyToBuild();
+  }
+});
+
+async function detectSpeedForVideo(file){
+  return new Promise((resolve, reject) => {
+    const v = document.createElement('video');
+    v.src = URL.createObjectURL(file);
+    v.muted = true;
+    v.playsInline = true;
+    const sw = 96, sh = 54;
+    const c = document.createElement('canvas');
+    c.width = sw; c.height = sh;
+    const cctx = c.getContext('2d');
+    v.addEventListener('loadedmetadata', async () => {
+      try{
+        const duration = v.duration;
+        if(!duration || !isFinite(duration)) { resolve(2.5); return; }
+        const samples = 8;
+        let prevFrame = null, totalDiff = 0, diffCount = 0;
+        for(let i=0;i<samples;i++){
+          const t = (duration / (samples+1)) * (i+1);
+          await seekTo(v, t);
+          cctx.drawImage(v, 0, 0, sw, sh);
+          const frame = cctx.getImageData(0,0,sw,sh).data;
+          if(prevFrame){
+            let diff = 0;
+            for(let p=0; p<frame.length; p+=16) diff += Math.abs(frame[p]-prevFrame[p]);
+            totalDiff += diff; diffCount++;
+          }
+          prevFrame = frame;
+        }
+        const avgDiff = diffCount ? (totalDiff/diffCount) : 0;
+        const norm = Math.min(1, avgDiff / 6000);
+        const speed = 3.0 - norm * 1.0;
+        resolve(Math.max(2.0, Math.min(3.0, speed)));
+      }catch(e){ reject(e); }
+    });
+    v.addEventListener('error', reject);
+  });
+}
+function seekTo(video, t){
+  return new Promise((resolve) => {
+    const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
+    video.addEventListener('seeked', onSeeked);
+    video.currentTime = t;
+  });
+}
+
+// ---------- STEP 3: Build video ----------
+function checkReadyToBuild(){ buildBtn.disabled = !(voiceoverFile && pickedVideoFile); }
+
+let ffmpegSingleton = null;
+async function convertToMp4(webmBlob){
+  if(!window.FFmpeg) throw new Error('ffmpeg not available');
+  if(!ffmpegSingleton){
+    const { createFFmpeg } = window.FFmpeg;
+    ffmpegSingleton = createFFmpeg({ log: false });
+    await ffmpegSingleton.load();
+  }
+  const { fetchFile } = window.FFmpeg;
+  ffmpegSingleton.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
+  await ffmpegSingleton.run('-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', 'output.mp4');
+  const data = ffmpegSingleton.FS('readFile', 'output.mp4');
+  ffmpegSingleton.FS('unlink', 'input.webm');
+  ffmpegSingleton.FS('unlink', 'output.mp4');
+  return new Blob([data.buffer], { type: 'video/mp4' });
+}
+
+function buildCaptionChunks(text){ return text.trim().split(/\s+/).filter(Boolean); }
+
+function wrapText(context, text, maxWidth){
+  const words = text.split(' ');
+  const lines = []; let line = '';
+  for(const w of words){
+    const test = line ? line + ' ' + w : w;
+    if(context.measureText(test).width > maxWidth && line){ lines.push(line); line = w; }
+    else line = test;
+  }
+  if(line) lines.push(line);
+  return lines;
+}
+
+buildBtn.addEventListener('click', async () => {
+  buildBtn.disabled = true;
+  buildProgress.style.display = 'block';
+  buildProgress.value = 0;
+  setStatus(buildStatus,'Preparing...','info');
+  try{
+    captionChunks = buildCaptionChunks(storyEl.value);
+    srcVideo.src = URL.createObjectURL(pickedVideoFile);
+    await new Promise(res => srcVideo.addEventListener('loadedmetadata', res, {once:true}));
+    srcVideo.playbackRate = chosenSpeed;
+    srcVideo.currentTime = 0;
+
+    const audioEl = new Audio(voiceoverBlobUrl);
+    audioEl.crossOrigin = 'anonymous';
+    await new Promise(res => audioEl.addEventListener('loadedmetadata', res, {once:true}));
+    const totalDuration = audioEl.duration;
+
+    const audioCtx = getAudioCtx();
+    const srcNode = audioCtx.createMediaElementSource(audioEl);
+    const dest = audioCtx.createMediaStreamDestination();
+    srcNode.connect(dest);
+
+    const canvasStream = workCanvas.captureStream(30);
+    const combined = new MediaStream([...canvasStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+
+    let mimeType = 'video/webm;codecs=vp9,opus';
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8,opus';
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4';
+
+    const recorder = new MediaRecorder(combined, {mimeType});
+    const chunks = [];
+    recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+    const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+
+    setStatus(buildStatus,'Recording... keep this tab open.','info');
+
+    let rafId;
+    let recordStartPerf = null;
+    const srcDuration = srcVideo.duration || 1;
+
+    function drawFrame(){
+      const cw = workCanvas.width, ch = workCanvas.height;
+
+      // Force actual playback speed to stay accurate, correcting for any
+      // mobile browser drift/stall with native playbackRate.
+      if(recordStartPerf !== null){
+        const elapsed = (performance.now() - recordStartPerf) / 1000;
+        const expected = (elapsed * chosenSpeed) % srcDuration;
+        if(Math.abs(srcVideo.currentTime - expected) > 0.25){
+          srcVideo.currentTime = expected;
+        }
+      }
+
+      const vw = srcVideo.videoWidth, vh = srcVideo.videoHeight;
+      const scale = Math.max(cw/vw, ch/vh);
+      const dw = vw*scale, dh = vh*scale;
+      const dx = (cw-dw)/2, dy = (ch-dh)/2;
+      ctx.drawImage(srcVideo, dx, dy, dw, dh);
+
+      const t = audioEl.currentTime;
+      const perWord = totalDuration / captionChunks.length;
+      let idx = Math.floor(t / perWord);
+      if(idx >= captionChunks.length) idx = captionChunks.length - 1;
+      const caption = (captionChunks[idx] || '').toUpperCase();
+
+      if(caption){
+        let fontSize = 78;
+        ctx.font = '900 ' + fontSize + 'px -apple-system, sans-serif';
+        while(ctx.measureText(caption).width > cw*0.88 && fontSize > 28){
+          fontSize -= 4;
+          ctx.font = '900 ' + fontSize + 'px -apple-system, sans-serif';
+        }
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = fontSize * 0.18;
+        ctx.strokeStyle = '#000000';
+        ctx.strokeText(caption, cw/2, ch/2);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(caption, cw/2, ch/2);
+      }
+
+      buildProgress.value = totalDuration ? Math.min(1, t/totalDuration) : 0;
+      rafId = requestAnimationFrame(drawFrame);
+    }
+
+    srcVideo.addEventListener('ended', () => {
+      if(!audioEl.ended){ srcVideo.currentTime = 0; srcVideo.play(); }
+    });
+
+    recorder.start();
+    await audioCtx.resume();
+    await srcVideo.play();
+    await audioEl.play();
+    recordStartPerf = performance.now();
+    drawFrame();
+
+    audioEl.addEventListener('ended', () => {
+      cancelAnimationFrame(rafId);
+      srcVideo.pause();
+      recorder.stop();
+    });
+
+    await stopped;
+
+    setStatus(buildStatus,'Finishing up...','info');
+
+    const outBlob = new Blob(chunks, {type: mimeType.split(';')[0]});
+    let finalBlob = outBlob;
+    let finalExt = 'webm';
+
+    if(mimeType.includes('mp4')){
+      finalExt = 'mp4';
+    }else{
+      try{
+        finalBlob = await convertToMp4(outBlob);
+        finalExt = 'mp4';
+      }catch(convErr){
+        console.warn('mp4 conversion unavailable, keeping webm', convErr);
+        finalExt = 'webm';
+      }
+    }
+
+    const outUrl = URL.createObjectURL(finalBlob);
+    previewOut.src = outUrl;
+    previewOut.style.display = 'block';
+    previewOut.muted = false;
+    downloadLink.href = outUrl;
+    downloadLink.download = 'reel.' + finalExt;
+    downloadLink.style.display = 'block';
+    setStatus(buildStatus,'Done! Preview below, or download it.','ok');
+  }catch(err){
+    console.error(err);
+    setStatus(buildStatus,'Something went wrong while recording: ' + err.message,'error');
+  }finally{
+    buildBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
