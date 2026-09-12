@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Reel Builder & Merger</title>
+<style>
+  :root{
+    --bg: #F4F6FA; --surface: #FFFFFF; --surface-2: #EEF1F7; --text: #12141C;
+    --text-dim: #6B7280; --coral: #2F6BFF; --teal: #00C2D1; --line: #DCE1EB; --danger: #D8432E;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:0 0 48px;}
+  .wrap{max-width:520px;margin:0 auto;padding:24px 18px;}
+  header{margin-bottom:28px;}
+  header h1{font-size:28px;font-weight:800;letter-spacing:-0.02em;margin:0 0 6px;}
+  header p{color:var(--text-dim);margin:0;font-size:15px;line-height:1.5;}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .step-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .step-num{width:24px;height:24px;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .step-title{font-weight:700;font-size:16px;}
+  .step-sub{color:var(--text-dim);font-size:13px;margin:2px 0 0 34px;line-height:1.4;}
+  label{display:block;font-size:13px;color:var(--text-dim);margin:12px 0 6px;}
+  input[type=text],input[type=password],input[type=number],input[type=file],textarea{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px 12px;font-size:15px;font-family:inherit;resize:vertical;}
+  textarea{min-height:90px;line-height:1.5;}
+  input:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .row{display:flex;gap:10px;align-items:center;}
+  .row input[type=number]{width:80px;}
+  .save-note{font-size:12px;color:var(--teal);margin-top:4px;display:none;}
+  .save-note.show{display:block;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;background:var(--coral);color:#fff;border:none;border-radius:10px;padding:13px 16px;font-size:15px;font-weight:700;margin-top:14px;cursor:pointer;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn.secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--line);}
+  .btn.teal{background:var(--teal);color:#fff;}
+  .status{font-size:13px;margin-top:10px;padding:10px 12px;border-radius:8px;line-height:1.5;display:none;}
+  .status.show{display:block;}
+  .status.info,.status.ok{background:rgba(79,216,196,.12);color:var(--teal);}
+  .status.error{background:rgba(255,139,107,.12);color:var(--danger);}
+  .hint{font-size:12px;color:var(--text-dim);margin-top:8px;line-height:1.5;}
+  .part{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;}
+  .part-label{font-size:13px;font-weight:700;margin-bottom:6px;}
+  .part-text{font-size:13px;color:var(--text-dim);background:var(--bg);border-radius:8px;padding:8px;margin-bottom:8px;max-height:90px;overflow:auto;white-space:pre-wrap;}
+  .page-view{display:none;}.page-view.active{display:block;}
+  #navToMergerBtn{display:none;margin-top:20px;font-size:16px;padding:16px;}
+</style>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+<header><h1 id="mainTitle">Audio Generator</h1><p id="mainDesc">Generate your voiceover first, then move to the merger to apply it to a video.</p></header>
+<div id="page-audio" class="page-view active"><div class="step">
+<div class="step-head"><div class="step-num">1</div><div class="step-title">Your story</div></div>
+<div class="step-sub">Long stories are auto-split and stitched back into one voiceover.</div>
+<label for="story">Story text</label><textarea id="story" placeholder="Once upon a time..."></textarea>
+<label for="proxyUrl">Proxy URL (from your Cloudflare Worker)</label><input type="text" id="proxyUrl" placeholder="https://reel-builder-proxy.your-subdomain.workers.dev">
+<label for="voiceId">Cloned voice ID (reference_id)</label><input type="text" id="voiceId" placeholder="your_model_id"><div class="save-note" id="saveNote">Saved — you won't need to enter this again.</div>
+<label for="apiKey">Fish Audio API key <span style="color:var(--text-dim);font-weight:400;">(optional if using proxy)</span></label><input type="password" id="apiKey" placeholder="fa-...">
+<label for="tuneRate">Voice tuning (speed + pitch, linked)</label><div class="row"><input type="number" id="tuneRate" value="1.1" min="0.5" max="2" step="0.05"><span style="font-size:13px;color:var(--text-dim);">× speed</span></div>
+<button class="btn" id="genVoiceBtn">Generate voiceover</button><div class="status" id="voiceStatus"></div>
+<div id="manualFallback" style="display:none;"><div class="hint">Direct generation failed. Generate parts manually on Fish Audio and upload them here.</div><div id="partsList"></div><button class="btn secondary" id="combinePartsBtn" style="display:none;">Combine &amp; tune parts</button></div>
+<audio id="audioPreview" controls style="width:100%;margin-top:10px;display:none;"></audio><button class="btn teal" id="navToMergerBtn">Proceed to Video Merger →</button>
+</div></div>
+<div id="page-merger" class="page-view"><div class="step">
+<div class="step-head"><div class="step-num">2</div><div class="step-title">Merge Audio & Video</div></div><div class="step-sub">Your generated audio is ready. Upload a visual to attach it to.</div>
+<div style="background:rgba(79,216,196,.12);color:var(--teal);padding:12px;border-radius:8px;margin-top:12px;font-size:14px;font-weight:bold;">🎵 Generated Audio is attached and ready.</div>
+<label for="video-input" style="margin-top:20px;">Video File (original audio will be muted)</label><input type="file" id="video-input" accept="video/*">
+<button class="btn" id="process-btn" style="margin-top:24px;">Process & Export MP4</button><div class="status" id="status-message" style="text-align:center;"></div>
+<video id="output-player" controls style="width:100%;margin-top:16px;border-radius:10px;display:none;background:#000;"></video><a id="download-link" class="btn teal" style="display:none;margin-top:12px;text-decoration:none;">Download Final MP4</a>
+<button class="btn secondary" id="navBackBtn" style="margin-top:20px;">← Back to Audio Generation</button>
+</div></div></div>
+<script>
+const $=id=>document.getElementById(id);
+const storyEl=$('story'),apiKeyEl=$('apiKey'),voiceIdEl=$('voiceId'),tuneRateEl=$('tuneRate'),proxyUrlEl=$('proxyUrl'),saveNote=$('saveNote'),genVoiceBtn=$('genVoiceBtn'),voiceStatus=$('voiceStatus'),manualFallback=$('manualFallback'),partsList=$('partsList'),combinePartsBtn=$('combinePartsBtn'),audioPreview=$('audioPreview'),navToMergerBtn=$('navToMergerBtn');
+const pageAudio=$('page-audio'),pageMerger=$('page-merger'),mainTitle=$('mainTitle'),mainDesc=$('mainDesc'),navBackBtn=$('navBackBtn');
+const videoInput=$('video-input'),processBtn=$('process-btn'),statusMessage=$('status-message'),outputPlayer=$('output-player'),downloadLink=$('download-link');
+let voiceoverBlobUrl=null,voiceoverFile=null;
+(function(){try{const v=localStorage.getItem('fish_voice_id');if(v){voiceIdEl.value=v;saveNote.classList.add('show')}const p=localStorage.getItem('fish_proxy_url');if(p){proxyUrlEl.value=p;saveNote.classList.add('show')}}catch(e){}})();
+voiceIdEl.addEventListener('change',()=>{if(voiceIdEl.value.trim())try{localStorage.setItem('fish_voice_id',voiceIdEl.value.trim());saveNote.classList.add('show')}catch(e){}});
+proxyUrlEl.addEventListener('change',()=>{if(proxyUrlEl.value.trim())try{localStorage.setItem('fish_proxy_url',proxyUrlEl.value.trim());saveNote.classList.add('show')}catch(e){}});
+function setStatus(el,msg,type){el.textContent=msg;el.className='status show '+type}function splitIntoChunks(text,maxChars){const s=text.trim().split(/(?<=[.!?])\s+/),c=[];let cur='';for(const x of s){if((cur+' '+x).trim().length<=maxChars)cur=(cur+' '+x).trim();else{if(cur)c.push(cur);cur=x}}if(cur)c.push(cur);return c.length?c:[text.trim()]}
+let sharedAudioCtx=null;function getAudioCtx(){if(!sharedAudioCtx)sharedAudioCtx=new(window.AudioContext||window.webkitAudioContext)();return sharedAudioCtx}
+async function decodeToBuffer(a){return await getAudioCtx().decodeAudioData(a.slice(0))}
+async function resampleTo(b,r){if(Math.abs(b.sampleRate-r)<1)return b;const o=new OfflineAudioContext(b.numberOfChannels,Math.ceil(b.duration*r),r),s=o.createBufferSource();s.buffer=b;s.connect(o.destination);s.start();return await o.startRendering()}
+function concatBuffers(bs,ctx){const n=Math.max(...bs.map(b=>b.numberOfChannels)),r=bs[0].sampleRate,l=bs.reduce((x,b)=>x+b.length,0),o=ctx.createBuffer(n,l,r);let off=0;for(const b of bs){for(let ch=0;ch<n;ch++)o.getChannelData(ch).set(b.getChannelData(Math.min(ch,b.numberOfChannels-1)),off);off+=b.length}return o}
+async function applyRate(b,r){if(!r||r===1)return b;const o=new OfflineAudioContext(b.numberOfChannels,Math.ceil(b.length/r),b.sampleRate),s=o.createBufferSource();s.buffer=b;s.playbackRate.value=r;s.connect(o.destination);s.start();return await o.startRendering()}
+function audioBufferToWav(b){const n=b.numberOfChannels,r=b.sampleRate,l=b.length*n*2+44,a=new ArrayBuffer(l),v=new DataView(a);const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};w(0,'RIFF');v.setUint32(4,l-8,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,n,true);v.setUint32(24,r,true);v.setUint32(28,r*n*2,true);v.setUint16(32,n*2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,l-44,true);let o=44;for(let i=0;i<b.length;i++)for(let ch=0;ch<n;ch++){let s=Math.max(-1,Math.min(1,b.getChannelData(ch)[i]));v.setInt16(o,s<0?s*0x8000:s*0x7FFF,true);o+=2}return new Blob([a],{type:'audio/wav'})}
+async function finalizeBuffers(bs,r){const x=[];for(const b of bs)x.push(await resampleTo(b,44100));return audioBufferToWav(await applyRate(concatBuffers(x,getAudioCtx()),r))}
+function setVoiceover(b){voiceoverFile=b;if(voiceoverBlobUrl)URL.revokeObjectURL(voiceoverBlobUrl);voiceoverBlobUrl=URL.createObjectURL(b);audioPreview.src=voiceoverBlobUrl;audioPreview.style.display='block';navToMergerBtn.style.display='flex'}
+genVoiceBtn.addEventListener('click',async()=>{const text=storyEl.value.trim(),key=apiKeyEl.value.trim(),voiceId=voiceIdEl.value.trim(),proxyUrl=proxyUrlEl.value.trim(),rate=parseFloat(tuneRateEl.value)||1;if(!text||!voiceId||(!proxyUrl&&!key)){setStatus(voiceStatus,'Add your story, voice ID, and proxy URL or API key.','error');return}genVoiceBtn.disabled=true;try{const chunks=splitIntoChunks(text,490),bs=[];for(let i=0;i<chunks.length;i++){setStatus(voiceStatus,`Generating part ${i+1} of ${chunks.length}...`,'info');const res=await fetch(proxyUrl||'https://api.fish.audio/v1/tts',{method:'POST',headers:proxyUrl?{'Content-Type':'application/json'}:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({text:chunks[i],reference_id:voiceId,format:'mp3'})});if(!res.ok)throw new Error(`HTTP ${res.status}`);bs.push(await decodeToBuffer(await res.arrayBuffer()))}setVoiceover(await finalizeBuffers(bs,rate));setStatus(voiceStatus,'Voiceover ready! Click below to proceed.','ok')}catch(e){setStatus(voiceStatus,'Server error: '+e.message,'error')}finally{genVoiceBtn.disabled=false}});
+navToMergerBtn.onclick=()=>{pageAudio.classList.remove('active');pageMerger.classList.add('active');mainTitle.innerText='Video Merger';mainDesc.innerText='Attach your video. The generated audio is pre-loaded.'};
+navBackBtn.onclick=()=>{pageMerger.classList.remove('active');pageAudio.classList.add('active');mainTitle.innerText='Audio Generator';mainDesc.innerText='Generate your voiceover first, then move to the merger to apply it to a video.'};
+const {createFFmpeg,fetchFile}=FFmpeg,ffmpeg=createFFmpeg({log:true});
+processBtn.addEventListener('click',async()=>{if(!videoInput.files[0]||!voiceoverFile){alert('Please select a video and generate audio first.');return}try{processBtn.disabled=true;setStatus(statusMessage,'Loading FFmpeg core...','info');if(!ffmpeg.isLoaded())await ffmpeg.load();ffmpeg.FS('writeFile','input_video.mp4',await fetchFile(videoInput.files[0]));ffmpeg.FS('writeFile','input_audio.wav',await fetchFile(voiceoverFile));setStatus(statusMessage,'Processing video...','info');await ffmpeg.run('-stream_loop','-1','-i','input_video.mp4','-i','input_audio.wav','-c:v','libx264','-preset','ultrafast','-c:a','aac','-map','0:v:0','-map','1:a:0','-shortest','output.mp4');const data=ffmpeg.FS('readFile','output.mp4'),blob=new Blob([data.buffer],{type:'video/mp4'}),url=URL.createObjectURL(blob);outputPlayer.src=url;outputPlayer.style.display='block';downloadLink.href=url;downloadLink.download='merged_output.mp4';downloadLink.style.display='flex';setStatus(statusMessage,'Done! Preview or download your video.','ok')}catch(e){setStatus(statusMessage,'An error occurred during processing.','error')}finally{processBtn.disabled=false}});
+</script>
+</body>
+</html>
